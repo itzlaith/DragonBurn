@@ -52,7 +52,7 @@ namespace SpecList
 
     void GetSpectatorList(CEntity Entity, CEntity& LocalEntity)
     {
-        if (!MiscCFG::SpecList || LocalEntity.Controller.TeamID == 0)
+        if (!MiscCFG::SpecList)
             return;
 
         uintptr_t LocalPlayer;

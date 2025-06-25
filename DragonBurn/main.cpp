@@ -15,6 +15,7 @@
 #include "Core/Init.h"
 #include "Config/ConfigSaver.h"
 #include "Helpers/Logger.h"
+#include "Helpers/uiaccess.h"
 #include <filesystem>
 #include <KnownFolders.h>
 #include <ShlObj.h>
@@ -28,6 +29,14 @@ void Cheat();
 
 int main()
 {
+
+	DWORD err = PrepareForUIAccess();
+	if (err != ERROR_SUCCESS)
+	{
+		MessageBoxA(NULL, "Failed to elevate to UIAccess.", "Error", MB_OK);
+		return -1;
+	}
+
 	Cheat();
 }
 
@@ -56,7 +65,7 @@ https://github.com/ByteCorum/DragonBurn
 	}
 
 #ifndef DBDEBUG
-	Log::Info("Checking cheat version");
+	/*Log::Info("Checking cheat version");
 	switch (Init::Verify::CheckCheatVersion())
 	{
 	case 0:
@@ -85,7 +94,7 @@ https://github.com/ByteCorum/DragonBurn
 		Log::Error("Unknown connection error");
 		break;
 
-	}
+	}*/
 #endif
 
 	Log::Info("Updating offsets");
@@ -94,11 +103,10 @@ https://github.com/ByteCorum/DragonBurn
 	case 0:
 		
 		Log::PreviousLine();
-		Log::Error("Bad internet connection");
+		Log::Warning("Bad internet connection.. continuing without updating offsets");
 		break;
 
 	case 1:
-		
 		Log::PreviousLine();
 		Log::Error("Failed to UpdateOffsets");
 		break;
@@ -106,6 +114,18 @@ https://github.com/ByteCorum/DragonBurn
 	case 2:
 		Log::PreviousLine();
 		Log::Fine("Offsets updated");
+		break;
+	case 3:
+		Log::PreviousLine();
+		Log::Warning("No connection - used previous cached offsets");
+		break;
+	case 4:
+		Log::PreviousLine();
+		Log::Fine("Offsets are up to date (no changes)");
+		break;
+	case 5:
+		Log::PreviousLine();
+		Log::Warning("Updated offsets but failed to save cache");
 		break;
 
 	default:
@@ -117,7 +137,7 @@ https://github.com/ByteCorum/DragonBurn
 	}
 
 	Log::Info("Connecting to kernel mode driver");
-	if (memoryManager.ConnectDriver(L"\\\\.\\DragonBurn-kernel"))
+	if (memoryManager.ConnectDriver(L"\\\\.\\laithdriver"))
 	{
 		Log::PreviousLine();
 		Log::Fine("Successfully connected to kernel mode driver");
@@ -232,7 +252,7 @@ https://github.com/ByteCorum/DragonBurn
 
 	try
 	{
-		Gui.AttachAnotherWindow("Counter-Strike 2", "SDL_app", Cheats::Run);
+		Gui.AttachAnotherWindow("Counter-Strike 2", "SDL_app", Cheats::RunTri);
 	}
 	catch (OSImGui::OSException& e)
 	{

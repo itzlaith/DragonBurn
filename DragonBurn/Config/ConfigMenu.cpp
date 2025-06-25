@@ -130,8 +130,11 @@ namespace ConfigMenu {
 
 	void ResetToDefault() {
 		TriggerBot::IgnoreFlash = false;
+		TriggerBot::VisibleCheck = false;
 		TriggerBot::ScopeOnly = true;
+		TriggerBot::WorkWithAimbot = false;
 		AimControl::IgnoreFlash = false;
+		AimControl::HumanizeVar = false;
 
 		ESPConfig::ArmorBar = false;
 		ESPConfig::ShowArmorNum = false;

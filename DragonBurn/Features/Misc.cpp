@@ -34,10 +34,15 @@ namespace Misc
 
 		Vec3 Pos = LocalPlayer.Pawn.Pos;
 
+		int currentFPS = static_cast<int>(ImGui::GetIO().Framerate);
+		char fpsText[32];
+		snprintf(fpsText, sizeof(fpsText), " FPS: [%d]", currentFPS);
+
 		ImGui::Text("  DragonBurn");
 		ImGui::Text("  Kernel CS2 cheat");
-		ImGui::Text("  Vel: %.2f", LocalPlayer.Pawn.Speed);
-		ImGui::Text("  Pos: %.1f, %.1f, %.1f ", Pos.x, Pos.y, Pos.z);
+		ImGui::Text("%s", fpsText);
+		//ImGui::Text("  Vel: %.2f", LocalPlayer.Pawn.Speed);
+		//ImGui::Text("  Pos: %.1f, %.1f, %.1f ", Pos.x, Pos.y, Pos.z);
 		ImGui::Text("                                                      ");
 
 		MenuConfig::MarkWinPos = ImGui::GetWindowPos();
