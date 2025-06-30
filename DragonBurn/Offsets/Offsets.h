@@ -58,6 +58,11 @@ public:
 		DWORD iShotsFired;
 		DWORD flFlashDuration;
 		DWORD aimPunchAngle;
+
+		DWORD punchAngleVel;
+		DWORD punchTickFraction;
+		DWORD punchTickBase;
+
 		DWORD aimPunchCache;
 		DWORD iIDEntIndex;
 		DWORD iTeamNum;

@@ -1,5 +1,5 @@
 #include "Aimbot.h"
-
+#include "../Helpers/Logger.h"
 #undef max()
 #undef min()
 
@@ -62,9 +62,9 @@ std::pair<float, float> AimControl::Humanize(float TargetX, float TargetY) {
     }
     
     // Random distributions for different types of jitter (increased ranges)
-    std::uniform_real_distribution<float> jitterDist(-2.5f, 2.5f);
-    std::uniform_real_distribution<float> microDist(-1.2f, 1.2f);
-    std::uniform_real_distribution<float> smoothnessDist(0.4f, 0.85f);
+    std::uniform_real_distribution<float> jitterDist(-10.f, 10.f);
+    std::uniform_real_distribution<float> microDist(-10.f, 10.f);
+    std::uniform_real_distribution<float> smoothnessDist(0.4f, 10.f);
     
     // Calculate movement distance for dynamic adjustments
     float MovementDistance = std::sqrt(TargetX * TargetX + TargetY * TargetY);

@@ -71,8 +71,6 @@ public:
         return BatchReadMemory(requests, results.data());
     }
 
-    DWORD64 TraceAddress(DWORD64 baseAddress, std::vector<DWORD> offsets);
-
 private:
     DWORD ProcessID = 0;
     HANDLE kernelDriver = nullptr;

@@ -139,7 +139,7 @@ namespace Cheats {
     class EntityProcessor {
     public:
         static std::vector<EntityProcessResult> ProcessEntities(
-            const CEntity& localEntity,
+            CEntity& localEntity,
             const MapManager& mapManager,
             int localPlayerControllerIndex
         );

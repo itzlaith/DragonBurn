@@ -73,7 +73,7 @@ namespace Cheats {
             g_mapManager.reset();
         }
 
-        if (g_globalVars) {  
+        if (g_globalVars) {
             g_globalVars.reset();
         }
 
@@ -113,22 +113,9 @@ namespace Cheats {
     }
 
     void CheatManager::ProcessEntities() {
-        DWORD64 localControllerAddress = 0;
-        DWORD64 localPawnAddress = 0;
-
-        if (!memoryManager.ReadMemory(gGame.GetLocalControllerAddress(), localControllerAddress) ||
-            !memoryManager.ReadMemory(gGame.GetLocalPawnAddress(), localPawnAddress)) {
-            return;
-        }
-
-        // Update local entity
+        // Initialize local entity with client data only
         CEntity localEntity;
         localEntity.UpdateClientData();
-
-        if (!localEntity.UpdateControllerBatch(localControllerAddress) ||
-            (!localEntity.UpdatePawnBatch(localPawnAddress) && !MenuConfig::WorkInSpec)) {
-            return;
-        }
 
         // Handle map loading
         if (!Utils::IsInServer()) {
@@ -141,9 +128,15 @@ namespace Cheats {
             g_mapManager->LoadMap(currentMap.c_str());
         }
 
-        // Process entities
+        // Process entities (local entity will be updated inside this call)
         auto processedEntities = EntityProcessor::ProcessEntities(
             localEntity, *g_mapManager, m_localPlayerControllerIndex);
+
+        // Validate local entity after batch processing
+        if (!localEntity.Controller.Address ||
+            (!localEntity.Pawn.Address && !MenuConfig::WorkInSpec)) {
+            return;
+        }
 
         // Collect aim positions
         std::vector<Vec3> aimPositions;
@@ -156,7 +149,7 @@ namespace Cheats {
             RadarManager::Initialize(gameRadar);
         }
 
-        TriggerBot::g_HasValidTarget = false;
+        bool hasValidTargetThisFrame = false;
 
         // Process each entity result
         for (const auto& result : processedEntities) {
@@ -172,7 +165,10 @@ namespace Cheats {
             SpecList::GetSpectatorList(result.entity, localEntity);
 
             // Handle TriggerBot
-            TriggerBot::CheckForValidHitbox(localEntity, result.entity, result.isVisible);
+            if (TriggerBot::CheckForValidHitbox(localEntity, result.entity, result.isVisible)) {
+                hasValidTargetThisFrame = true;
+                // Don't break here - continue processing other entities for ESP, etc.
+            }
 
             // Collect aim positions
             if (result.isValidForAiming && result.distanceToSight < maxAimDistance) {
@@ -191,6 +187,11 @@ namespace Cheats {
         RadarManager::Update(gameRadar, localEntity);
         AimManager::Update(localEntity, aimPositions);
         MiscManager::Update(localEntity, m_previousTotalHits);
+
+        if (!hasValidTargetThisFrame) {
+            TriggerBot::g_HasValidTarget = false;
+            TriggerBot::g_CanShoot = false;
+        }
 
         TriggerBot::Run(localEntity);
     }
@@ -484,7 +485,7 @@ namespace Cheats {
 
     DWORD AimManager::s_lastToggleTick = 0;
 
-    void AimManager::Update(const CEntity& localEntity,std::vector<Vec3>& aimPositions) {
+    void AimManager::Update(const CEntity& localEntity, std::vector<Vec3>& aimPositions) {
         if (!LegitBotConfig::AimBot) {
             ProcessRecoilControl(localEntity);
             return;
@@ -547,21 +548,26 @@ namespace Cheats {
     //=============================================================================
 
     std::vector<EntityProcessResult> EntityProcessor::ProcessEntities(
-        const CEntity& localEntity,
+        CEntity& localEntity,
         const MapManager& mapManager,
         int localPlayerControllerIndex) {
-
         Threading::ThreadSafeVector<EntityProcessResult> validEntities;
+        auto entityData = CollectEntityAddresses(localEntity, localPlayerControllerIndex);
 
-        auto entityData = CollectEntityAddresses(localEntity, localPlayerControllerIndex);  // Changed name
+        // Extract local entity from batch results
+        for (auto it = entityData.begin(); it != entityData.end(); ++it) {
+            if (it->first == -1) { // Local entity has index -1
+                localEntity = it->second; // Update local entity with batch-processed data
+                entityData.erase(it); // Remove from processing list
+                break;
+            }
+        }
 
-        // Parallel processing of entities
+        // Parallel processing of remaining entities
         Threading::parallelForIndex(0, entityData.size(), [&](size_t i) {
-            const auto& [entityIndex, entity] = entityData[i];  // Changed to entity
-
+            const auto& [entityIndex, entity] = entityData[i];
             EntityProcessResult result = ProcessSingleEntity(
-                entityIndex, entity, localEntity, mapManager, localPlayerControllerIndex);  // Changed parameter
-
+                entityIndex, entity, localEntity, mapManager, localPlayerControllerIndex);
             if (result.entityIndex != -1) {
                 validEntities.push_back(result);
             }
@@ -573,11 +579,18 @@ namespace Cheats {
     std::vector<std::pair<int, CEntity>> EntityProcessor::CollectEntityAddresses(
         const CEntity& localEntity,
         int& localPlayerControllerIndex) {
+        std::vector<EntityBatchData> batchData;
+        batchData.reserve(64);
 
-        std::vector<std::pair<int, CEntity>> entityData;
-        entityData.reserve(64);
-
-        int maxClients = 64;
+        //int maxClients = 64;
+        int maxClients = g_globalVars.get()->g_iMaxClients;
+        // Add local entity to batch data first
+        DWORD64 localControllerAddress = 0;
+        DWORD64 localPawnAddress = 0;
+        if (memoryManager.ReadMemory(gGame.GetLocalControllerAddress(), localControllerAddress) &&
+            memoryManager.ReadMemory(gGame.GetLocalPawnAddress(), localPawnAddress)) {
+            batchData.emplace_back(-1, localControllerAddress, localPawnAddress); // Use -1 as special index for local
+        }
 
         for (int entityIndex = 0; entityIndex < maxClients; ++entityIndex) {
             DWORD64 entityAddress = 0;
@@ -585,21 +598,30 @@ namespace Cheats {
                 gGame.GetEntityListEntry() + (entityIndex + 1) * 0x78, entityAddress)) {
                 continue;
             }
-
-            if (entityAddress == localEntity.Controller.Address) {
+            if (entityAddress == localControllerAddress) {
                 localPlayerControllerIndex = entityIndex;
                 continue;
             }
 
-            // Create and fully populate entity here
-            CEntity entity;
-            if (entity.UpdateControllerBatch(entityAddress) &&
-                entity.UpdatePawnBatch(entity.Pawn.Address)) {
-                entityData.emplace_back(entityIndex, entity);
+            CEntity tempEntity;
+            tempEntity.Controller.Address = entityAddress;
+            DWORD64 pawnAddress = tempEntity.Controller.GetPlayerPawnAddress();
+            if (pawnAddress != 0) {
+                batchData.emplace_back(entityIndex, entityAddress, pawnAddress);
             }
         }
 
-        return entityData;
+        if (batchData.empty()) {
+            return {};
+        }
+
+        std::vector<std::pair<int, CEntity>> entities;
+        EntityBatchProcessor processor;
+        if (!processor.ProcessAllEntities(entities, batchData)) {
+            return {};
+        }
+
+        return entities;
     }
 
     EntityProcessResult EntityProcessor::ProcessSingleEntity(
@@ -688,9 +710,9 @@ namespace Cheats {
                 if (!LegitBotConfig::VisibleCheck || isVisible) {
                     Vec3 tempPos = entity.GetBone().BonePosList[hitboxID].Pos;
 
-                    if (hitboxID == BONEINDEX::head) {
+                    /*if (hitboxID == BONEINDEX::head) {
                         tempPos.z -= 1.0f;
-                    }
+                    }*/
 
                     bestAimPos = tempPos;
                     result.isValidForAiming = true;

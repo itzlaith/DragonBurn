@@ -8,4 +8,5 @@ namespace RCS
 
 	void UpdateAngles(const CEntity&, Vec2&);
 	void RecoilControl(CEntity);
+	Vec2 GetCompensatedAngles(const CEntity& Local, const Vec3& targetPos, const Vec3& localPos);
 }

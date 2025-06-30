@@ -14,50 +14,6 @@
 namespace TriggerBot
 {
 
-
-    struct Vec3Trigger {
-        float x, y, z;
-
-        Vec3Trigger() : x(0), y(0), z(0) {}
-        Vec3Trigger(float x, float y, float z) : x(x), y(y), z(z) {}
-
-        Vec3Trigger operator+(const Vec3Trigger& other) const {
-            return Vec3Trigger(x + other.x, y + other.y, z + other.z);
-        }
-
-        Vec3Trigger operator-(const Vec3Trigger& other) const {
-            return Vec3Trigger(x - other.x, y - other.y, z - other.z);
-        }
-
-        Vec3Trigger operator*(float scalar) const {
-            return Vec3Trigger(x * scalar, y * scalar, z * scalar);
-        }
-
-        float dot(const Vec3Trigger& other) const {
-            return x * other.x + y * other.y + z * other.z;
-        }
-
-        float length() const {
-            return std::sqrt(x * x + y * y + z * z);
-        }
-
-        Vec3Trigger normalize() const {
-            float len = length();
-            if (len == 0) return Vec3Trigger(0, 0, 0);
-            return Vec3Trigger(x / len, y / len, z / len);
-        }
-
-        Vec3Trigger cross(const Vec3Trigger& other) const {
-            return Vec3Trigger(
-                y * other.z - z * other.y,
-                z * other.x - x * other.z,
-                x * other.y - y * other.x
-            );
-        }
-    };
-
-
-
     // Configuration
     inline int TriggerDelay = 30; // ms
     inline int ShotDuration = 80; // ms
@@ -83,11 +39,6 @@ namespace TriggerBot
 
     // Hitbox radius calculation based on bone positions
     float GetHitboxRadius(const CEntity& Entity, int hitboxIndex);
-
-    bool raySphereIntersect(const Vec3Trigger& rayOrigin, const Vec3Trigger& rayDirection, const Vec3Trigger& sphereCenter, float sphereRadius);
-
-
-    bool rayAABBIntersect(const Vec3Trigger& rayOrigin, const Vec3Trigger& rayDirection, const Vec3Trigger& boxCenter, const Vec3Trigger& boxSize);
 
     // Ray casting from eye position to hitbox radius
     bool CastRayToHitbox(const CEntity& LocalEntity, const CEntity& Entity, int hitboxIndex, const Vec2& hitboxScreenPos, float radius);

@@ -43,6 +43,7 @@ namespace AimControl
     std::pair<float, float> Humanize(float TargetX, float TargetY);
 
     void AimBot(const CEntity& Local, Vec3 LocalPos,std::vector<Vec3>& AimPosList);
+    Vec2 CalculateAngles(const Vec3& from, const Vec3& to);
     void switchToggle();
     std::pair<float, float> CalculateTargetOffset(const Vec2& ScreenPos, int ScreenCenterX, int ScreenCenterY);
     bool CheckAutoMode(const std::string& WeaponName);

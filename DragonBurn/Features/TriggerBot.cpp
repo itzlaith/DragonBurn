@@ -34,14 +34,9 @@ void TriggerBot::Run(const CEntity& LocalEntity)
         }
     }
 
-    // Check if we have a valid target and can shoot
-    bool foundValidTarget = false;
-
-    // This will be called from ProcessEntities for each entity
+    // Process trigger logic if we have a valid target
     if (g_HasValidTarget)
     {
-        foundValidTarget = true;
-
         // Handle trigger delay
         if (!g_CanShoot)
         {
@@ -59,13 +54,6 @@ void TriggerBot::Run(const CEntity& LocalEntity)
         {
             ExecuteShot();
         }
-    }
-
-    // Reset if no valid target found this frame
-    if (!foundValidTarget)
-    {
-        g_HasValidTarget = false;
-        g_CanShoot = false;
     }
 }
 
@@ -99,14 +87,12 @@ bool TriggerBot::CheckForValidHitbox(const CEntity& LocalEntity, const CEntity& 
         BONEINDEX::ankle_R
     };
 
+
+
     for (int hitboxIndex : hitboxesToCheck)
     {
-        if (hitboxIndex >= static_cast<int>(BoneList.size()))
-            continue;
-
         const BoneJointPos& bone = BoneList[hitboxIndex];
         float radius = GetHitboxRadius(Entity, hitboxIndex);
-
         Gui.Circle(bone.ScreenPos, radius, ESPConfig::HeadBoxColor, 1.2f);
 
         if (CastRayToHitbox(LocalEntity, Entity, hitboxIndex, bone.ScreenPos, radius))
@@ -117,6 +103,7 @@ bool TriggerBot::CheckForValidHitbox(const CEntity& LocalEntity, const CEntity& 
                 g_TargetFoundTime = std::chrono::system_clock::now();
                 g_CanShoot = false;
             }
+            // If we already had a target, keep the original timer
             return true;
         }
     }
@@ -162,53 +149,6 @@ float TriggerBot::GetHitboxRadius(const CEntity& Entity, int hitboxIndex)
 
     return 0.f;
 }
-bool TriggerBot::raySphereIntersect(const Vec3Trigger& rayOrigin, const Vec3Trigger& rayDirection,
-    const Vec3Trigger& sphereCenter, float sphereRadius) {
-    Vec3Trigger oc = rayOrigin - sphereCenter;
-    float a = rayDirection.dot(rayDirection);
-    float b = 2.0f * oc.dot(rayDirection);
-    float c = oc.dot(oc) - sphereRadius * sphereRadius;
-    float discriminant = b * b - 4 * a * c;
-
-    if (discriminant < 0) return false;
-
-    float t1 = (-b - std::sqrt(discriminant)) / (2.0f * a);
-    float t2 = (-b + std::sqrt(discriminant)) / (2.0f * a);
-
-    // Check if intersection occurs within ray length
-    float rayLength = rayDirection.length();
-    return (t1 >= 0 && t1 <= rayLength) || (t2 >= 0 && t2 <= rayLength);
-}
-
-bool TriggerBot::rayAABBIntersect(const Vec3Trigger& rayOrigin, const Vec3Trigger& rayDirection,
-    const Vec3Trigger& boxCenter, const Vec3Trigger& boxSize) {
-    // Calculate box min/max from center and size (half-extents)
-    Vec3Trigger boxMin = boxCenter - boxSize;
-    Vec3Trigger boxMax = boxCenter + boxSize;
-
-    Vec3Trigger rayDir = rayDirection.normalize();
-    float rayLength = rayDirection.length();
-
-    // Calculate intersection distances for each axis
-    float tMinX = (boxMin.x - rayOrigin.x) / rayDir.x;
-    float tMaxX = (boxMax.x - rayOrigin.x) / rayDir.x;
-    if (tMinX > tMaxX) std::swap(tMinX, tMaxX);
-
-    float tMinY = (boxMin.y - rayOrigin.y) / rayDir.y;
-    float tMaxY = (boxMax.y - rayOrigin.y) / rayDir.y;
-    if (tMinY > tMaxY) std::swap(tMinY, tMaxY);
-
-    float tMinZ = (boxMin.z - rayOrigin.z) / rayDir.z;
-    float tMaxZ = (boxMax.z - rayOrigin.z) / rayDir.z;
-    if (tMinZ > tMaxZ) std::swap(tMinZ, tMaxZ);
-
-    float tMin = std::max({ tMinX, tMinY, tMinZ });
-    float tMax = std::min({ tMaxX, tMaxY, tMaxZ });
-
-    // Check if intersection occurs within ray length
-    return tMax >= 0 && tMin <= tMax && tMin <= rayLength;
-}
-
 
 bool TriggerBot::CastRayToHitbox(const CEntity& LocalEntity, const CEntity& Entity, int hitboxIndex, const Vec2& hitboxScreenPos, float radius)
 {
@@ -218,34 +158,8 @@ bool TriggerBot::CastRayToHitbox(const CEntity& LocalEntity, const CEntity& Enti
     // Calculate distance from crosshair to hitbox center
     float distanceToHitbox = crosshairCenter.DistanceTo(hitboxScreenPos);
 
-    // Check if crosshair is within the hitbox radius
-    if (distanceToHitbox <= radius)
-    {
-        // Cast ray from eye position to hitbox world position
-        const auto& BoneList = Entity.GetBone().BonePosList;
-        if (hitboxIndex >= static_cast<int>(BoneList.size()))
-            return false;
-
-        Vec3 hitboxWorldPos = BoneList[hitboxIndex].Pos;
-
-        // Adjust head position slightly
-        if (hitboxIndex == BONEINDEX::head)
-            hitboxWorldPos.z -= 1.0f;
-
-        // Simple line of sight check - cast ray from eye to hitbox
-        Vec3 eyePos = LocalEntity.Pawn.CameraPos;
-        Vec3 direction = hitboxWorldPos - eyePos;
-
-
-        return raySphereIntersect(
-            *reinterpret_cast<Vec3Trigger*>(&eyePos),
-            *reinterpret_cast<Vec3Trigger*>(&direction),
-            *reinterpret_cast<Vec3Trigger*>(&hitboxWorldPos),
-            radius
-        );
-    }
-
-    return false;
+    // is the hitbox center within the radius on screen?
+    return distanceToHitbox <= radius;
 }
 
 bool TriggerBot::IsValidTarget(const CEntity& LocalEntity, const CEntity& TargetEntity, bool Spotted)
@@ -312,12 +226,12 @@ void TriggerBot::ExecuteShot()
 
     // Update timing
     g_LastShotTime = std::chrono::system_clock::now();
-    g_CanShoot = true; // Will be managed by shot duration in Run()
 
     // Execute shot with random timing
     std::random_device RandomDevice;
     std::mt19937 RandomNumber(RandomDevice());
-    std::uniform_int_distribution<> Range(10, 50);
+    std::uniform_int_distribution<> Range(1, 5);
+    auto rand = std::chrono::microseconds(Range(RandomNumber));
 
     mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
     std::this_thread::sleep_for(std::chrono::microseconds(Range(RandomNumber)));

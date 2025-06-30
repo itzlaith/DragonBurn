@@ -324,21 +324,6 @@ namespace ESP
                     ImColor(255, 255, 255, 255), ImColor(0, 0, 0, 255),
                     10.0f, WeaponsIconsFont);
             }
-
-            //else if (weaponIcon.empty()) {
-            //    ImVec2 textPosition = {
-            //   Rect.x + (Rect.z - 13.0f) * 0.5f,
-            //   Rect.y + Rect.w + 1.0f
-            //    };
-
-            //    if (ESPConfig::AmmoBar)
-            //        textPosition.y += 6.0f;
-
-            //    // Render weapon name
-            //    BatchOutlinedText(batch, Entity.Pawn.WeaponName, textPosition,
-            //        ImColor(255, 0, 0, 255), ImColor(0, 0, 0, 255),
-            //        10.0f, ImGui::GetIO().Fonts->Fonts[0]);
-            //}
         }
 
         // Batch scoped indicator

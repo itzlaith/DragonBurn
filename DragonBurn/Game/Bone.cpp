@@ -248,34 +248,57 @@ bool CBone::UpdateAllBoneDataBatch(const DWORD64& EntityPawnAddress) {
 
 	this->EntityPawnAddress = EntityPawnAddress;
 
-	// First, get the dependent addresses with individual reads
-	DWORD64 GameSceneNodeAddr = 0;
-	DWORD64 BoneArrayAddress = 0;
+	// BATCH READ 1: Get dependent addresses
+	std::vector<std::pair<DWORD64, SIZE_T>> batch1Requests = {
+		{EntityPawnAddress + Offset.Pawn.GameSceneNode, sizeof(DWORD64)},  // GameSceneNodeAddr
+	};
 
-	if (!memoryManager.ReadMemory<DWORD64>(EntityPawnAddress + Offset.Pawn.GameSceneNode, GameSceneNodeAddr))
+	std::vector<BYTE> batch1Buffer(sizeof(DWORD64));
+
+	if (!memoryManager.BatchReadMemory(batch1Requests, batch1Buffer.data())) {
 		return false;
+	}
 
+	// Extract GameSceneNode address
+	DWORD64 GameSceneNodeAddr;
+	memcpy(&GameSceneNodeAddr, batch1Buffer.data(), sizeof(DWORD64));
+
+	if (GameSceneNodeAddr == 0) return false;
 	this->GameSceneNode = reinterpret_cast<c_game_scene_node*>(GameSceneNodeAddr);
 
-	if (!memoryManager.ReadMemory<DWORD64>(GameSceneNodeAddr + Offset.Pawn.BoneArray, BoneArrayAddress))
-		return false;
+	// BATCH READ 2: Get BoneArray address
+	std::vector<std::pair<DWORD64, SIZE_T>> batch2Requests = {
+		{GameSceneNodeAddr + Offset.Pawn.BoneArray, sizeof(DWORD64)}  // BoneArrayAddress
+	};
 
-	// Prepare batch read requests for all 30 bones
+	std::vector<BYTE> batch2Buffer(sizeof(DWORD64));
+
+	if (!memoryManager.BatchReadMemory(batch2Requests, batch2Buffer.data())) {
+		return false;
+	}
+
+	// Extract BoneArray address
+	DWORD64 BoneArrayAddress;
+	memcpy(&BoneArrayAddress, batch2Buffer.data(), sizeof(DWORD64));
+
+	if (BoneArrayAddress == 0) return false;
+
+	// BATCH READ 3: Read all bone data at once
 	constexpr size_t NUM_BONES = 30;
-	std::vector<std::pair<DWORD64, SIZE_T>> requests;
-	requests.reserve(NUM_BONES);
+	std::vector<std::pair<DWORD64, SIZE_T>> batch3Requests;
+	batch3Requests.reserve(NUM_BONES);
 
 	// Create requests for each bone (each bone is 32 bytes apart)
 	for (size_t i = 0; i < NUM_BONES; ++i) {
-		requests.push_back({ BoneArrayAddress + (i * 32), sizeof(BoneJointData) });
+		batch3Requests.push_back({ BoneArrayAddress + (i * 32), sizeof(BoneJointData) });
 	}
 
 	// Calculate total buffer size
 	SIZE_T total_size = NUM_BONES * sizeof(BoneJointData);
-	std::vector<BYTE> batch_buffer(total_size);
+	std::vector<BYTE> batch3Buffer(total_size);
 
-	// Perform batch read
-	if (!memoryManager.BatchReadMemory(requests, batch_buffer.data())) {
+	// Perform batch read for all bones
+	if (!memoryManager.BatchReadMemory(batch3Requests, batch3Buffer.data())) {
 		return false;
 	}
 
@@ -289,12 +312,11 @@ bool CBone::UpdateAllBoneDataBatch(const DWORD64& EntityPawnAddress) {
 	SIZE_T offset = 0;
 	for (size_t i = 0; i < NUM_BONES; ++i) {
 		BoneJointData bone;
-		memcpy(&bone, batch_buffer.data() + offset, sizeof(BoneJointData));
+		memcpy(&bone, batch3Buffer.data() + offset, sizeof(BoneJointData));
 		offset += sizeof(BoneJointData);
 
 		Vec2 ScreenPos;
 		bool IsVisible = false;
-
 		if (gGame.View.WorldToScreen(bone.Pos, ScreenPos))
 			IsVisible = true;
 
