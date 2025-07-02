@@ -145,10 +145,6 @@ namespace Cheats {
             m_currentTick = 0;
         }
 
-        //m_currentTick = localEntity.Controller.m_nTickBase;
-
-
-
         // Process entities
         auto processedEntities = EntityProcessor::ProcessEntities(localEntity, *g_mapManager, m_localPlayerControllerIndex);
 
@@ -584,7 +580,7 @@ namespace Cheats {
         const CEntity& localEntity,
         int& localPlayerControllerIndex) {
 
-        // Static cache for previous results
+        // Static cache for previous results - only update information when there's new information 
         static std::vector<std::pair<int, CEntity>> cachedResults;
         static bool hasValidCache = false;
 
