@@ -99,6 +99,7 @@ public:
 		DWORD PawnArmor;
 		DWORD HasDefuser;
 		DWORD HasHelmet;
+		DWORD m_nTickBase;
 	} PlayerController;
 
 	struct

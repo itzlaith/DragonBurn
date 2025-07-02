@@ -400,7 +400,7 @@ bool EntityBatchProcessor::ProcessAllEntities(
 	for (auto& [entityIndex, entity] : entities) {
 
 		if (entity.Pawn.Address != 0) {
-			entity.Pawn.BoneData.UpdateAllBoneDataBatch(entity.Pawn.Address);
+			entity.Pawn.BoneData.UpdateAllBoneData(entity.Pawn.Address);
 		}
 	}
 
@@ -423,6 +423,7 @@ bool EntityBatchProcessor::ProcessCoreEntityData(
 		requests.emplace_back(entity.Controller.Address + Offset.Pawn.iTeamNum, sizeof(int));
 		requests.emplace_back(entity.Controller.Address + Offset.Entity.iszPlayerName, MAX_PATH);
 		requests.emplace_back(entity.Controller.Address + Offset.PlayerController.m_steamID, sizeof(INT64));
+		//requests.emplace_back(entity.Controller.Address + Offset.PlayerController.m_nTickBase, sizeof(DWORD64));
 		requests.emplace_back(entity.Controller.Address + Offset.Entity.PlayerPawn, sizeof(DWORD));
 
 		// ALL pawn requests for this entity
@@ -494,6 +495,9 @@ bool EntityBatchProcessor::ProcessCoreEntityData(
 		memcpy(&entity.Controller.SteamID, buffer.data() + currentOffset, sizeof(INT64));
 		currentOffset += sizeof(INT64);
 
+		/*memcpy(&entity.Controller.m_nTickBase, buffer.data() + currentOffset, sizeof(DWORD));
+		currentOffset += sizeof(DWORD);*/
+
 		memcpy(&entity.Controller.Pawn, buffer.data() + currentOffset, sizeof(DWORD));
 		currentOffset += sizeof(DWORD);
 
@@ -553,9 +557,6 @@ bool EntityBatchProcessor::ProcessCoreEntityData(
 
 		weaponAddresses.push_back(weaponAddr);
 		cameraAddresses.push_back(cameraAddr);
-
-		// CRITICAL: Move to next entity using actual data size
-		//entityBufferOffset = currentOffset;
 	}
 
 	return true;

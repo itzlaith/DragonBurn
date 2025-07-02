@@ -49,6 +49,7 @@ public:
 	int Health = 0;
 	int AliveStatus = 0;
 	INT64 SteamID = 0;
+	int m_nTickBase = 0;
 	DWORD Pawn = 0;
 	std::string PlayerName;
 	std::vector<std::string> spectators = {};
@@ -84,6 +85,7 @@ public:
 	float Speed;
 	std::string WeaponName;
 	DWORD ShotsFired;
+	DWORD GameSceneNode;
 	Vec2 AimPunchAngle;
 	C_UTL_VECTOR AimPunchCache;
 
@@ -159,10 +161,10 @@ private:
 			BatchField{ Offset.Pawn.fFlags, &pawn.fFlags },
 			BatchField{ Offset.C4.m_bBeingDefused, &pawn.isDefusing },
 			BatchField{ Offset.Pawn.aimPunchCache, &pawn.AimPunchCache },
-
 			BatchField{ Offset.Pawn.punchAngleVel, &pawn.AimPunchAngleVel },
 			BatchField{ Offset.Pawn.punchTickFraction, &pawn.AimPunchTickFraction },
-			BatchField{ Offset.Pawn.punchTickBase, &pawn.AimPunchTickBase }
+			BatchField{ Offset.Pawn.punchTickBase, &pawn.AimPunchTickBase },
+			BatchField{ Offset.Pawn.GameSceneNode, &pawn.GameSceneNode }
 		);
 	}
 
@@ -194,9 +196,6 @@ public:
 	bool IsAlive() const;
 	bool IsInScreen();
 	CBone GetBone() const;
-
-	bool UpdateControllerBatch(const DWORD64& PlayerControllerAddress);
-	bool UpdatePawnBatch(const DWORD64& PlayerPawnAddress);
 
 
 	//
@@ -241,21 +240,8 @@ private:
 		const std::vector<DWORD64>& weaponDataAddresses,
 		const std::vector<DWORD64>& cameraAddresses);
 
-	//// Phase-based processing
-	//void PrepareControllerRequests();
-	//void PreparePawnCoreRequests();
-	//void PrepareWeaponRequests(const std::vector<DWORD64>& weaponAddresses);
-	//void PrepareFinalRequests(const std::vector<DWORD64>& weaponDataAddrs,
-	//	const std::vector<DWORD64>& cameraServiceAddrs);
-
-	//bool ExtractControllerData(CEntity& entity, const EntityBatchData& batchData);
-	//bool ExtractPawnData(CEntity& entity, const EntityBatchData& batchData);
 
 public:
 
 	bool ProcessAllEntities(std::vector<std::pair<int, CEntity>>& entities, const std::vector<EntityBatchData>& batchData);
-
-	/*bool ProcessAllEntities(std::vector<std::pair<int, CEntity>>& entities,
-		const std::vector<DWORD64>& controllerAddresses,
-		const std::vector<DWORD64>& pawnAddresses);*/
 };

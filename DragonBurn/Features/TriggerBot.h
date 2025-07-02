@@ -34,6 +34,8 @@ namespace TriggerBot
     // Main functions
     void Run(const CEntity& LocalEntity);
 
+    void DrawHitboxes(c_game_scene_node* playerGameSceneNode);
+
     // Core detection function
     bool CheckForValidHitbox(const CEntity& LocalEntity, const CEntity& Entity, bool IsVisible);
 

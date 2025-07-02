@@ -53,6 +53,9 @@ void Offsets::SetOffsets(const std::string& offsetsData, const std::string& butt
     this->Pawn.punchTickFraction = client_dllJson["C_CSPlayerPawn"]["fields"]["m_aimPunchTickFraction"];
     this->Pawn.punchTickBase = client_dllJson["C_CSPlayerPawn"]["fields"]["m_aimPunchTickBase"];
 
+
+
+
     this->Pawn.aimPunchCache = client_dllJson["C_CSPlayerPawn"]["fields"]["m_aimPunchCache"];
     this->Pawn.iIDEntIndex = client_dllJson["C_CSPlayerPawnBase"]["fields"]["m_iIDEntIndex"];
     this->Pawn.iTeamNum = client_dllJson["C_BaseEntity"]["fields"]["m_iTeamNum"];
@@ -74,6 +77,8 @@ void Offsets::SetOffsets(const std::string& offsetsData, const std::string& butt
     this->GlobalVar.CurrentMap = 0x0180;
     this->GlobalVar.CurrentMapName = 0x0188;
 
+
+    this->PlayerController.m_nTickBase = client_dllJson["CBasePlayerController"]["fields"]["m_nTickBase"];
     this->PlayerController.m_steamID = client_dllJson["CBasePlayerController"]["fields"]["m_steamID"];
     this->PlayerController.m_hPawn = client_dllJson["CBasePlayerController"]["fields"]["m_hPawn"];
     this->PlayerController.m_pObserverServices = client_dllJson["C_BasePlayerPawn"]["fields"]["m_pObserverServices"];
@@ -82,6 +87,7 @@ void Offsets::SetOffsets(const std::string& offsetsData, const std::string& butt
     this->PlayerController.PawnArmor = client_dllJson["CCSPlayerController"]["fields"]["m_iPawnArmor"];
     this->PlayerController.HasDefuser = client_dllJson["CCSPlayerController"]["fields"]["m_bPawnHasDefuser"];
     this->PlayerController.HasHelmet = client_dllJson["CCSPlayerController"]["fields"]["m_bPawnHasHelmet"];
+
 
     this->EconEntity.AttributeManager = client_dllJson["C_EconEntity"]["fields"]["m_AttributeManager"];
 

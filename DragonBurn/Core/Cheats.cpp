@@ -21,7 +21,6 @@
 #include "../Helpers/Logger.h"
 #include "../Core/GlobalVars.h"
 #include "Threading.h"
-
 namespace Cheats {
 
     // Global instances
@@ -107,15 +106,27 @@ namespace Cheats {
         if (g_globalVars) {
             g_globalVars->UpdateGlobalvars();
         }
-
         // Update EntityList Entry
         gGame.UpdateEntityListEntry();
     }
 
     void CheatManager::ProcessEntities() {
-        // Initialize local entity with client data only
+        DWORD64 localControllerAddress = 0;
+        DWORD64 localPawnAddress = 0;
+
+        if (!memoryManager.ReadMemory(gGame.GetLocalControllerAddress(), localControllerAddress) ||
+            !memoryManager.ReadMemory(gGame.GetLocalPawnAddress(), localPawnAddress)) {
+            return;
+        }
+
+        // Update local entity
         CEntity localEntity;
         localEntity.UpdateClientData();
+
+        if (!localEntity.UpdateController(localControllerAddress) ||
+            (!localEntity.UpdatePawn(localPawnAddress) && !MenuConfig::WorkInSpec)) {
+            return;
+        }
 
         // Handle map loading
         if (!Utils::IsInServer()) {
@@ -128,15 +139,18 @@ namespace Cheats {
             g_mapManager->LoadMap(currentMap.c_str());
         }
 
-        // Process entities (local entity will be updated inside this call)
-        auto processedEntities = EntityProcessor::ProcessEntities(
-            localEntity, *g_mapManager, m_localPlayerControllerIndex);
+        bool success = memoryManager.ReadMemory<int>(localEntity.Controller.Address + Offset.PlayerController.m_nTickBase, m_currentTick);
 
-        // Validate local entity after batch processing
-        if (!localEntity.Controller.Address ||
-            (!localEntity.Pawn.Address && !MenuConfig::WorkInSpec)) {
-            return;
+        if (!success) {
+            m_currentTick = 0;
         }
+
+        //m_currentTick = localEntity.Controller.m_nTickBase;
+
+
+
+        // Process entities
+        auto processedEntities = EntityProcessor::ProcessEntities(localEntity, *g_mapManager, m_localPlayerControllerIndex);
 
         // Collect aim positions
         std::vector<Vec3> aimPositions;
@@ -149,7 +163,7 @@ namespace Cheats {
             RadarManager::Initialize(gameRadar);
         }
 
-        bool hasValidTargetThisFrame = false;
+         bool hasValidTargetThisFrame = false;
 
         // Process each entity result
         for (const auto& result : processedEntities) {
@@ -547,62 +561,53 @@ namespace Cheats {
     // EntityProcessor 
     //=============================================================================
 
+
     std::vector<EntityProcessResult> EntityProcessor::ProcessEntities(
-        CEntity& localEntity,
+        const CEntity& localEntity,
         const MapManager& mapManager,
         int localPlayerControllerIndex) {
         Threading::ThreadSafeVector<EntityProcessResult> validEntities;
-        auto entityData = CollectEntityAddresses(localEntity, localPlayerControllerIndex);
-
-        // Extract local entity from batch results
-        for (auto it = entityData.begin(); it != entityData.end(); ++it) {
-            if (it->first == -1) { // Local entity has index -1
-                localEntity = it->second; // Update local entity with batch-processed data
-                entityData.erase(it); // Remove from processing list
-                break;
-            }
-        }
-
-        // Parallel processing of remaining entities
+        auto entityData = CollectEntityAddresses(localEntity, localPlayerControllerIndex);  // Changed name
+        // Parallel processing of entities
         Threading::parallelForIndex(0, entityData.size(), [&](size_t i) {
-            const auto& [entityIndex, entity] = entityData[i];
+            const auto& [entityIndex, entity] = entityData[i];  // Changed to entity
             EntityProcessResult result = ProcessSingleEntity(
-                entityIndex, entity, localEntity, mapManager, localPlayerControllerIndex);
+                entityIndex, entity, localEntity, mapManager, localPlayerControllerIndex);  // Changed parameter
             if (result.entityIndex != -1) {
                 validEntities.push_back(result);
             }
             });
-
         return validEntities.get();
     }
 
     std::vector<std::pair<int, CEntity>> EntityProcessor::CollectEntityAddresses(
         const CEntity& localEntity,
         int& localPlayerControllerIndex) {
-        std::vector<EntityBatchData> batchData;
-        batchData.reserve(64);
 
-        //int maxClients = 64;
-        int maxClients = g_globalVars.get()->g_iMaxClients;
-        // Add local entity to batch data first
-        DWORD64 localControllerAddress = 0;
-        DWORD64 localPawnAddress = 0;
-        if (memoryManager.ReadMemory(gGame.GetLocalControllerAddress(), localControllerAddress) &&
-            memoryManager.ReadMemory(gGame.GetLocalPawnAddress(), localPawnAddress)) {
-            batchData.emplace_back(-1, localControllerAddress, localPawnAddress); // Use -1 as special index for local
+        // Static cache for previous results
+        static std::vector<std::pair<int, CEntity>> cachedResults;
+        static bool hasValidCache = false;
+
+        if (m_currentTick == m_previousTick)
+        {
+            return cachedResults;
         }
 
+        std::vector<EntityBatchData> batchData;
+        batchData.reserve(64);
+        int maxClients = 64;
         for (int entityIndex = 0; entityIndex < maxClients; ++entityIndex) {
             DWORD64 entityAddress = 0;
             if (!memoryManager.ReadMemory<DWORD64>(
                 gGame.GetEntityListEntry() + (entityIndex + 1) * 0x78, entityAddress)) {
                 continue;
             }
-            if (entityAddress == localControllerAddress) {
+            if (entityAddress == localEntity.Controller.Address) {
                 localPlayerControllerIndex = entityIndex;
                 continue;
             }
-
+            // Get pawn address - this still needs individual reads
+            // Could be optimized further by batching pawn address reads too
             CEntity tempEntity;
             tempEntity.Controller.Address = entityAddress;
             DWORD64 pawnAddress = tempEntity.Controller.GetPlayerPawnAddress();
@@ -610,19 +615,123 @@ namespace Cheats {
                 batchData.emplace_back(entityIndex, entityAddress, pawnAddress);
             }
         }
-
         if (batchData.empty()) {
             return {};
         }
-
+        // Use single batch processor
         std::vector<std::pair<int, CEntity>> entities;
         EntityBatchProcessor processor;
         if (!processor.ProcessAllEntities(entities, batchData)) {
             return {};
         }
 
-        return entities;
+        // Update cache
+        cachedResults = entities;
+        hasValidCache = true;
+        m_previousTick = m_currentTick;
+        return cachedResults;
     }
+
+
+    //std::vector<EntityProcessResult> EntityProcessor::ProcessEntities(
+    //    CEntity& localEntity,
+    //    const MapManager& mapManager,
+    //    int localPlayerControllerIndex) {
+
+    //    // Static cache for previous results
+    //    static std::vector<EntityProcessResult> cachedResults;
+    //    static CEntity cachedLocalEntity;
+    //    static bool hasValidCache = false;
+
+    //    Log::Debug(std::to_string(m_currentTick) + "inside function (current tick)");
+
+    //    if (m_currentTick == m_previousTick && hasValidCache) {
+    //        // Return cached data and restore local entity
+    //        localEntity = cachedLocalEntity;
+    //        Log::Debug("Returning cached results - no tick change");
+    //        return cachedResults;
+    //    }
+
+    //    Threading::ThreadSafeVector<EntityProcessResult> validEntities;
+    //    auto entityData = CollectEntityAddresses(localEntity, localPlayerControllerIndex);
+
+    //    // Extract local entity from batch results
+    //    for (auto it = entityData.begin(); it != entityData.end(); ++it) {
+    //        if (it->first == -1) { // Local entity has index -1
+    //            localEntity = it->second; // Update local entity with batch-processed data
+    //            entityData.erase(it); // Remove from processing list
+    //            break;
+    //        }
+    //    }
+
+    //    // Parallel processing of remaining entities
+    //    Threading::parallelForIndex(0, entityData.size(), [&](size_t i) {
+    //        const auto& [entityIndex, entity] = entityData[i];
+    //        EntityProcessResult result = ProcessSingleEntity(
+    //            entityIndex, entity, localEntity, mapManager, localPlayerControllerIndex);
+    //        if (result.entityIndex != -1) {
+    //            validEntities.push_back(result);
+    //        }
+    //        });
+
+    //    // Update cache
+    //    cachedResults = validEntities.get();
+    //    cachedLocalEntity = localEntity;
+    //    hasValidCache = true;
+
+    //    m_previousTick = m_currentTick;
+    //    Log::Debug(std::to_string(m_previousTick) + "inside function (prev tick)");
+
+    //    return cachedResults;
+    //}
+
+    //std::vector<std::pair<int, CEntity>> EntityProcessor::CollectEntityAddresses(
+    //    const CEntity& localEntity,
+    //    int& localPlayerControllerIndex) {
+    //    std::vector<EntityBatchData> batchData;
+    //    batchData.reserve(64);
+
+    //    //int maxClients = 64;
+    //    int maxClients = g_globalVars.get()->g_iMaxClients;
+    //    // Add local entity to batch data first
+    //    DWORD64 localControllerAddress = 0;
+    //    DWORD64 localPawnAddress = 0;
+    //    if (memoryManager.ReadMemory(gGame.GetLocalControllerAddress(), localControllerAddress) &&
+    //        memoryManager.ReadMemory(gGame.GetLocalPawnAddress(), localPawnAddress)) {
+    //        batchData.emplace_back(-1, localControllerAddress, localPawnAddress); // Use -1 as special index for local
+    //    }
+
+    //    for (int entityIndex = 0; entityIndex < maxClients; ++entityIndex) {
+    //        DWORD64 entityAddress = 0;
+    //        if (!memoryManager.ReadMemory<DWORD64>(
+    //            gGame.GetEntityListEntry() + (entityIndex + 1) * 0x78, entityAddress)) {
+    //            continue;
+    //        }
+    //        if (entityAddress == localControllerAddress) {
+    //            localPlayerControllerIndex = entityIndex;
+    //            continue;
+    //        }
+
+    //        CEntity tempEntity;
+    //        tempEntity.Controller.Address = entityAddress;
+    //        DWORD64 pawnAddress = tempEntity.Controller.GetPlayerPawnAddress();
+    //        if (pawnAddress != 0) {
+    //            batchData.emplace_back(entityIndex, entityAddress, pawnAddress);
+    //        }
+    //    }
+
+    //    if (batchData.empty()) {
+    //        return {};
+    //    }
+
+    //    std::vector<std::pair<int, CEntity>> entities;
+    //    EntityBatchProcessor processor;
+    //    if (!processor.ProcessAllEntities(entities, batchData)) {
+    //        return {};
+    //    }
+
+    //    return entities;
+    //}
 
     EntityProcessResult EntityProcessor::ProcessSingleEntity(
         int entityIndex,
@@ -864,7 +973,7 @@ namespace Cheats {
             g_cheatManager = std::make_unique<CheatManager>();
             g_cheatManager->Initialize();
         }
-
+        
         g_cheatManager->Update();
     }
 

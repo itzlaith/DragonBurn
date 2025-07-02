@@ -4,17 +4,20 @@
 #include <list>
 #include "Game.h"
 #include <cmath>
+#include <unordered_map>
 
-#undef M_PI()
+#undef M_PI
+#define M_PI 3.14159265358979323846
 
-#define M_PI       3.14159265358979323846
 // Original bone indices - keeping for compatibility
 enum BONEINDEX : DWORD
 {
 	head = 6,
 	neck_0 = 5,
-	spine_1 = 4,
-	spine_2 = 2,
+	spine_0 = 1,
+	spine_1 = 2,
+	spine_2 = 3,
+	spine_3 = 4,
 	pelvis = 0,
 	arm_upper_L = 8,
 	arm_lower_L = 9,
@@ -164,41 +167,92 @@ public:
 	}
 };
 
-
-// Enhanced bone data structure
-struct CBoneData
-{
-	Vec3 Location;  // Using your Vec3 instead of Vector_t
+struct CBoneData {
+	Vec3 Location;
 	float Scale;
 	Quaternion_t Rotation;
 };
 
-// Original bone joint data - keeping for compatibility
-struct BoneJointData
-{
+struct BoneJointData {
 	Vec3 Pos;
 	float Scale;
-	char pad[0x10];
+	Quaternion_t Rotation;
 };
 
-// Original bone position data - keeping for compatibility
-struct BoneJointPos
-{
+struct BoneJointPos {
 	Vec3 Pos;
 	Vec2 ScreenPos;
 	bool IsVisible = false;
 };
 
-// Enhanced model state class
+// Vector transformation functions
+namespace VectorTransform {
+	// Cross product helper
+	inline Vec3 Cross(const Vec3& a, const Vec3& b) {
+		return Vec3(
+			a.y * b.z - a.z * b.y,
+			a.z * b.x - a.x * b.z,
+			a.x * b.y - a.y * b.x
+		);
+	}
+
+	// Vector addition helper
+	inline Vec3 Add(const Vec3& a, const Vec3& b) {
+		return Vec3(a.x + b.x, a.y + b.y, a.z + b.z);
+	}
+
+	// Vector subtraction helper
+	inline Vec3 Subtract(const Vec3& a, const Vec3& b) {
+		return Vec3(a.x - b.x, a.y - b.y, a.z - b.z);
+	}
+
+	// Scalar multiplication helper
+	inline Vec3 Multiply(const Vec3& v, float scalar) {
+		return Vec3(v.x * scalar, v.y * scalar, v.z * scalar);
+	}
+
+	// Distance helper
+	inline float Distance(const Vec3& a, const Vec3& b) {
+		float dx = a.x - b.x;
+		float dy = a.y - b.y;
+		float dz = a.z - b.z;
+		return std::sqrt(dx * dx + dy * dy + dz * dz);
+	}
+
+	// Rotation helper
+	inline Vec3 Rotate(const Vec3& v, const Quaternion_t& q) {
+		Vec3 qvec(q.x, q.y, q.z);
+		Vec3 uv = Cross(qvec, v);
+		Vec3 uuv = Cross(qvec, uv);
+		uv = Multiply(uv, (2.0f * q.w));
+		uuv = Multiply(uuv, 2.0f);
+		return Add(Add(v, uv), uuv);
+	}
+
+	// Extension helper
+	inline Vec3 Extend(const Vec3& start, const Vec3& end, float distance) {
+		Vec3 dir = Subtract(end, start);
+		float len = std::sqrt(dir.x * dir.x + dir.y * dir.y + dir.z * dir.z);
+		if (len > 0.0f) {
+			dir.x /= len;
+			dir.y /= len;
+			dir.z /= len;
+			return Vec3(
+				start.x + dir.x * distance,
+				start.y + dir.y * distance,
+				start.z + dir.z * distance
+			);
+		}
+		return start;
+	}
+};
+
 class c_model_state {
 public:
 	std::optional<CBoneData> GetBoneLocation(int index);
-
-	// Get bone position in Vec3 format (compatible with original system)
 	std::optional<Vec3> GetBonePosition(int index);
 };
 
-// Hitbox classes
 class CHitBox {
 public:
 	CHitBox();
@@ -243,58 +297,43 @@ public:
 	CHitBox* GetpHitBox(int index);
 };
 
-class c_game_scene_node
-{
+class c_game_scene_node {
 public:
-	// Get bone array using your offset system
 	c_model_state* GetBoneArray();
-
-	// Get model
 	CModel* GetModel();
 };
 
-// Enhanced CBone class - maintains compatibility while adding new features
-class CBone
-{
+class CBone {
 private:
+
+
+public:
+	std::vector<BoneJointPos> BonePosList;
+	std::vector<CBoneData> EnhancedBoneData;
+
 	DWORD64 EntityPawnAddress = 0;
 	c_game_scene_node* GameSceneNode = nullptr;
 
-public:
-	// Original bone position list - keeping for compatibility
-	std::vector<BoneJointPos> BonePosList;
-
-	// Enhanced bone data list
-	std::vector<CBoneData> EnhancedBoneData;
-
-	// Original function - maintains compatibility
 	bool UpdateAllBoneData(const DWORD64& EntityPawnAddress);
-
-	// Enhanced bone data retrieval
-	std::optional<CBoneData> GetEnhancedBoneData(int index);
-
+	std::optional<CBoneData> GetEnhancedBoneData(int index) const;
 	bool UpdateAllBoneDataBatch(const DWORD64& EntityPawnAddress);
-
-	// Get hitbox data
-	CHitBox* GetHitBox(int index);
-
-	// Compatibility function - get bone position by index
+	CHitBox* GetHitBox(int index) const;
 	std::optional<Vec3> GetBonePosition(int boneIndex);
-
-	// Compatibility function - get screen position by index
 	std::optional<Vec2> GetBoneScreenPosition(int boneIndex);
-
-	// Check if bone is visible on screen
 	bool IsBoneVisible(int boneIndex);
 };
 
-// Original bone joint lists - keeping for compatibility
-namespace BoneJointList
-{
-	inline std::list<DWORD> Trunk = { neck_0, spine_2, pelvis };
+namespace BoneJointList {
+	inline std::list<DWORD> Trunk = { neck_0, spine_3, spine_2, spine_1, spine_0, pelvis };
 	inline std::list<DWORD> LeftArm = { neck_0, arm_upper_L, arm_lower_L, hand_L };
 	inline std::list<DWORD> RightArm = { neck_0, arm_upper_R, arm_lower_R, hand_R };
 	inline std::list<DWORD> LeftLeg = { pelvis, leg_upper_L, leg_lower_L, ankle_L };
 	inline std::list<DWORD> RightLeg = { pelvis, leg_upper_R, leg_lower_R, ankle_R };
 	inline std::vector<std::list<DWORD>> List = { Trunk, LeftArm, RightArm, LeftLeg, RightLeg };
 }
+
+// Hitbox drawing functions
+int HitboxToBone(const std::string& box);
+void CreateCircle(Vec3 point, Vec3 center, float radius, std::vector<Vec3>& vec, int segments = 12);
+
+void DrawCapsule(Vec3 vMin, Vec3 vMax, float radius, Quaternion_t rotation, Vec3 origPos, ImColor color, int segments = 12, float thickness = 1.0f);

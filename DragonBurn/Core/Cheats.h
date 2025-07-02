@@ -22,7 +22,8 @@ namespace Cheats {
     void RunMT();
     void Run();
     void RunTri();
-
+    inline int m_currentTick = 0;
+    inline int m_previousTick = 0;
     // Core system components
     
     class CheatManager {
@@ -42,6 +43,8 @@ namespace Cheats {
         bool m_initialized;
         int m_previousTotalHits;
         int m_localPlayerControllerIndex;
+
+
     };
 
     // Map management
@@ -77,6 +80,8 @@ namespace Cheats {
         ImVec4 espRect;
         int distance;
         bool hasESPData;
+
+
 
         EntityProcessResult()
             : entityIndex(-1), isVisible(false), isValidForAiming(false)
@@ -133,18 +138,24 @@ namespace Cheats {
         static void ProcessHitManager(CEntity& localEntity, int& previousTotalHits);
         static void ProcessMovementFeatures(CEntity& localEntity);
         static void ProcessUIFeatures(CEntity& localEntity);
+
+
+
+
+
     };
 
     // Entity processing
     class EntityProcessor {
     public:
         static std::vector<EntityProcessResult> ProcessEntities(
-            CEntity& localEntity,
+            const CEntity& localEntity,
             const MapManager& mapManager,
             int localPlayerControllerIndex
         );
 
     private:
+
         static std::vector<std::pair<int, CEntity>> CollectEntityAddresses(
             const CEntity& localEntity,
             int& localPlayerControllerIndex

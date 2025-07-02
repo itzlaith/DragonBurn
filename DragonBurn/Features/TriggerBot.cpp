@@ -2,7 +2,7 @@
 #include <thread>
 #include <chrono>
 #include <random>
-
+#include "../Helpers/Logger.h"
 
 void TriggerBot::Run(const CEntity& LocalEntity)
 {
@@ -63,6 +63,7 @@ bool TriggerBot::CheckForValidHitbox(const CEntity& LocalEntity, const CEntity& 
         return false;
 
     const auto& BoneList = Entity.GetBone().BonePosList;
+
     if (BoneList.empty())
         return false;
 
@@ -93,7 +94,7 @@ bool TriggerBot::CheckForValidHitbox(const CEntity& LocalEntity, const CEntity& 
     {
         const BoneJointPos& bone = BoneList[hitboxIndex];
         float radius = GetHitboxRadius(Entity, hitboxIndex);
-        Gui.Circle(bone.ScreenPos, radius, ESPConfig::HeadBoxColor, 1.2f);
+        //Gui.Circle(bone.ScreenPos, radius, ESPConfig::HeadBoxColor, 1.2f);
 
         if (CastRayToHitbox(LocalEntity, Entity, hitboxIndex, bone.ScreenPos, radius))
         {
